@@ -48,6 +48,16 @@ set_target_properties(hwsim PROPERTIES
     CXX_EXTENSIONS OFF
     WIN32_EXECUTABLE OFF   # keep the console so --headless can report to stdout
     FOLDER "app"
+
+    # Qt's bin directory is rarely on the system PATH, and when it is it often
+    # points at a different Qt. Without this, F5 in Visual Studio fails on a
+    # missing Qt6Core.dll before main() is reached.
+    VS_DEBUGGER_ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;%PATH%"
+
+    # Start in the source tree so the relative paths in the README -- and in the
+    # sample scenarios -- resolve. Plugins are found next to the executable, so
+    # this does not disturb plugin discovery.
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
 hwsim_set_target_warnings(hwsim)

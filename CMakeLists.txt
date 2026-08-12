@@ -62,6 +62,10 @@ add_subdirectory(src/ui)
 add_subdirectory(plugins)
 add_subdirectory(src/app)
 
+# Opening the generated solution should land on something that can actually be
+# started; Visual Studio otherwise selects ALL_BUILD, which cannot be run.
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT hwsim)
+
 if(HWSIM_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

@@ -69,6 +69,10 @@ function(hwsim_add_test name)
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
         FOLDER "tests"
+
+        # Same reason as the application target: debugging a test from the IDE
+        # has to find the Qt runtime, which ctest is told about separately below.
+        VS_DEBUGGER_ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;%PATH%"
     )
     hwsim_set_target_warnings(${name})
 
