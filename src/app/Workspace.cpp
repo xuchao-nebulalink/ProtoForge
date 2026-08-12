@@ -446,8 +446,9 @@ Result<void> Workspace::save(const QString& path) const
         // it was created with.
         simulator::DeviceProfile profile = config.profile;
         if (runtime->deviceUnsafe() != nullptr) {
-            runtime->invoke([&profile, &runtime] {
-                profile = simulator::DeviceProfile::captureFrom(*runtime->deviceUnsafe());
+            const simulator::DeviceProfile base = profile;
+            runtime->invoke([&profile, &base, &runtime] {
+                profile = simulator::DeviceProfile::captureFrom(*runtime->deviceUnsafe(), base);
             });
         }
         profile.protocolId = config.protocolId;
@@ -496,9 +497,22 @@ Result<void> Workspace::load(const QString& path)
                          QStringLiteral("workspace format is newer than this build supports"), path);
     }
 
+    // Checked before clear(): handing this a file that is not a workspace --
+    // a bare device profile is the easy mistake, since the two look alike --
+    // used to empty the workspace and report success, leaving no clue that
+    // nothing had been read.
+    const QJsonValue devicesValue = root.value(QStringLiteral("devices"));
+    if (!devicesValue.isArray()) {
+        return makeError(ErrorCode::ConfigInvalid,
+                         QStringLiteral("not a workspace file: no 'devices' array. A single "
+                                        "device profile has to be wrapped as "
+                                        "{\"devices\": [ ...profile..., \"id\": \"...\" ]}"),
+                         path);
+    }
+
     clear();
 
-    for (const QJsonValue& value : root.value(QStringLiteral("devices")).toArray()) {
+    for (const QJsonValue& value : devicesValue.toArray()) {
         const QJsonObject entry = value.toObject();
 
         const auto profile = simulator::DeviceProfile::fromJson(entry);

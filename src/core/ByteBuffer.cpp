@@ -1,6 +1,7 @@
 #include "ByteBuffer.h"
 
 #include <algorithm>
+#include <functional>
 
 namespace hwsim::core {
 
@@ -18,8 +19,14 @@ void ByteBuffer::append(std::span<const std::byte> data)
     // Guard against appending a view of our own storage, which callers do when
     // they re-queue unconsumed bytes. Both compaction and reallocation would
     // invalidate the span before it is read.
-    const bool aliasesStorage = !storage_.empty() && data.data() >= storage_.data()
-                                && data.data() < storage_.data() + storage_.size();
+    //
+    // std::less rather than the built-in operators: relational comparison of
+    // pointers into different objects is unspecified, and this deliberately
+    // compares an outside pointer against our buffer to find out whether it is
+    // one of ours.
+    const std::less<const std::byte*> before;
+    const bool aliasesStorage = !storage_.empty() && !before(data.data(), storage_.data())
+                                && before(data.data(), storage_.data() + storage_.size());
     if (aliasesStorage) {
         const std::vector<std::byte> copy(data.begin(), data.end());
         compactIfNeeded();

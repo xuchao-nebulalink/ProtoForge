@@ -37,11 +37,13 @@ Result<std::unique_ptr<DeviceRuntime>> DeviceRuntime::create(Config config,
     }
 
     // The role is part of the configuration handed to the plugin, because it
-    // decides whether the registry gets request handlers or response decoders.
-    config.protocolConfig.insert(QStringLiteral("role"),
-                                 config.role == transport::TransportRole::Initiator
-                                     ? QStringLiteral("initiator")
-                                     : QStringLiteral("responder"));
+    // decides whether the registry gets request handlers or response decoders,
+    // and for RTU it also decides which length table framing uses.
+    config.protocolConfig.insert(
+        QString::fromLatin1(protocol::reserved::kRole),
+        QString::fromLatin1(config.role == transport::TransportRole::Initiator
+                                ? protocol::reserved::kRoleInitiator
+                                : protocol::reserved::kRoleResponder));
 
     std::unique_ptr<DeviceRuntime> runtime(new DeviceRuntime(std::move(config), bus));
     runtime->plugin_ = plugin;
@@ -170,16 +172,23 @@ void DeviceRuntime::teardownOnWorkerThread()
     }
 
     thread_->invokeBlocking([this] {
-        sessions_.clear();
-
+        // Close the transport BEFORE dropping the sessions. Closing drives
+        // linkClosed for every live link, and onLinkClosed is what folds each
+        // session's counters into the running total; clearing first would make
+        // every lookup miss and silently discard the statistics of whatever was
+        // still connected.
+        //
         // The transport and its sockets belong to this thread, so they must be
-        // destroyed here. Destroying them on the main thread after the worker
-        // thread is gone trips Qt's "socket notifiers cannot be disabled from
-        // another thread" check.
+        // destroyed here too. Destroying them on the main thread after the
+        // worker thread is gone trips Qt's "socket notifiers cannot be disabled
+        // from another thread" check.
         if (transport_ != nullptr) {
             transport_->close();
             transport_.reset();
         }
+
+        // Safety net for a session whose link never reported itself closed.
+        sessions_.clear();
 
         if (device_ != nullptr) {
             device_->stop();
@@ -306,9 +315,12 @@ Result<void> DeviceRuntime::sendRaw(const QByteArray& bytes)
 
 protocol::ProtocolSession::Counters DeviceRuntime::aggregateCounters() const
 {
-    protocol::ProtocolSession::Counters total = retiredCounters_;
+    protocol::ProtocolSession::Counters total;
 
+    // retiredCounters_ is written by onLinkClosed on the worker thread, so read
+    // it there too rather than on whichever thread asked for the totals.
     invoke([this, &total] {
+        total = retiredCounters_;
         for (const auto& [id, session] : sessions_) {
             const auto counters = session->counters();
             total.framesDecoded += counters.framesDecoded;

@@ -6,7 +6,6 @@
 #include <QString>
 
 #include <cstddef>
-#include <cstdint>
 #include <span>
 
 namespace hwsim::core::hex {

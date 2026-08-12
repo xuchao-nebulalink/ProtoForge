@@ -24,6 +24,12 @@ struct ProtocolFrameEvent {
     QString messageDescription;
     bool decoded{false};
 
+    /// False when an outbound frame was built but discarded before transmission,
+    /// which is what a packet-loss or timeout fault does. Reported rather than
+    /// hidden: seeing that the device tried to answer and the fault ate the
+    /// reply is the whole point of the exercise.
+    bool delivered{true};
+
     /// Fault injection notes and decode diagnostics, shown as a row annotation.
     QString annotation;
 

@@ -19,6 +19,7 @@ ITransport::ITransport(QObject* parent) : QObject(parent)
 
 ITransport::~ITransport()
 {
+    tearingDown_ = true;
     links_.clear();
     retired_.clear();
 }
@@ -130,6 +131,13 @@ ILink* ITransport::addLink(std::unique_ptr<ILink> link)
 
 void ITransport::removeLink(LinkId id, const QString& reason)
 {
+    if (tearingDown_) {
+        // Reached from a socket's parting signal while links_ is being cleared.
+        // The link is already gone; searching for it would walk elements that
+        // are mid-destruction.
+        return;
+    }
+
     const auto it = std::find_if(links_.begin(), links_.end(),
                                  [id](const std::unique_ptr<ILink>& link) {
                                      return link->id() == id;
@@ -165,9 +173,10 @@ void ITransport::removeAllLinks(const QString& reason)
         removeLink(id, reason);
     }
 
-    // Reached from close() and from the destructor, never from a link's own
-    // signal handler, so the retired links can be released immediately rather
-    // than waiting for an event loop that may not exist.
+    // Only ever reached from close(), never from a link's own signal handler,
+    // so the retired links can be released immediately rather than waiting for
+    // an event loop that may not exist. The destructor clears both vectors
+    // directly and does not come through here.
     collectGarbage();
 }
 

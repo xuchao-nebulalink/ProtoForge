@@ -10,10 +10,21 @@ namespace hwsim::plugins::modbus {
 namespace {
 
 /// Modbus is big endian on the wire throughout.
+///
+/// Clamped rather than trusting the caller. Every call site checks the payload
+/// length first; the clamp only exists so that a future message type with a
+/// missing length check reads zeros instead of running off the end of the
+/// buffer. Values are bit-identical to an unclamped read for every in-range
+/// call, since readBig already zero-extends a short span.
 quint16 readWord(const QByteArray& payload, qsizetype offset)
 {
-    return core::endian::readBig<quint16>(
-        core::hex::asBytes(payload).subspan(static_cast<std::size_t>(offset), 2));
+    const auto bytes = core::hex::asBytes(payload);
+    const auto start = static_cast<std::size_t>(offset);
+    if (start >= bytes.size()) {
+        return 0;
+    }
+    const std::size_t available = bytes.size() - start;
+    return core::endian::readBig<quint16>(bytes.subspan(start, available < 2 ? available : 2));
 }
 
 void appendWord(QByteArray& out, quint16 value)
@@ -161,7 +172,7 @@ core::Result<QByteArray> WriteSingleCoilRequest::encodeBody(const EncodeContext&
 {
     QByteArray body;
     appendWord(body, address);
-    appendWord(body, value ? 0xFF00 : 0x0000);
+    appendWord(body, static_cast<quint16>(value ? 0xFF00 : 0x0000));
     return body;
 }
 
@@ -476,7 +487,10 @@ core::Result<ExceptionResponse> ExceptionResponse::decode(const Frame& frame)
     }
 
     ExceptionResponse response;
-    response.functionCode = static_cast<quint8>(frame.opcode) & ~fc::kExceptionFlag;
+    // Mask before narrowing: ~kExceptionFlag promotes to int, so masking a
+    // quint8 first yields an int and the assignment truncates with a warning.
+    response.functionCode =
+        static_cast<quint8>(frame.opcode & ~static_cast<OpCode>(fc::kExceptionFlag));
     response.exceptionCode = static_cast<ExceptionCode>(frame.payload.at(0));
     return response;
 }

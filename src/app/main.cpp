@@ -17,6 +17,12 @@
 
 #include <iostream>
 
+#ifdef Q_OS_WIN
+#    define WIN32_LEAN_AND_MEAN
+#    define NOMINMAX
+#    include <windows.h>
+#endif
+
 namespace {
 constexpr auto kLogCategory = "app";
 
@@ -137,10 +143,40 @@ bool wantsHeadless(int argc, char** argv)
     return false;
 }
 
+/// Answered before QCommandLineParser gets a chance to.
+///
+/// The parser routes --help through showHelp(), which on Windows prefers a
+/// message box and, when it does write to the console, was observed to produce
+/// nothing here. This binary deliberately keeps its console so it can be driven
+/// from a script, so help has to arrive on stdout, every time.
+bool wantsHelp(int argc, char** argv)
+{
+    for (int index = 1; index < argc; ++index) {
+        const std::string argument(argv[index]);
+        if (argument == "--help" || argument == "-h" || argument == "-?" || argument == "/?") {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
+#ifdef Q_OS_WIN
+    // Everything this process prints -- log lines, help, script output -- is
+    // UTF-8, while a console on a Chinese-locale Windows starts on CP936 and
+    // renders those bytes as mojibake. Fails harmlessly when no console is
+    // attached, and leaves redirected output untouched.
+    ::SetConsoleOutputCP(CP_UTF8);
+#endif
+
+    if (wantsHelp(argc, argv)) {
+        std::cout << hwsim::app::CliOptions::helpText().toStdString() << std::endl;
+        return 0;
+    }
+
     const bool headless = wantsHeadless(argc, argv);
 
     std::unique_ptr<QCoreApplication> application;

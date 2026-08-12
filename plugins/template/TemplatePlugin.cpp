@@ -19,8 +19,10 @@ constexpr quint32 kDefaultTagBase = 50000;
 
 bool isInitiator(const QVariantMap& config)
 {
-    return config.value(QStringLiteral("role"), QStringLiteral("responder")).toString()
-           == QStringLiteral("initiator");
+    return config.value(QString::fromLatin1(hwsim::protocol::reserved::kRole),
+                        QString::fromLatin1(hwsim::protocol::reserved::kRoleResponder))
+               .toString()
+           == QString::fromLatin1(hwsim::protocol::reserved::kRoleInitiator);
 }
 
 QJsonObject tagDefinition(const QString& key, quint32 address, const QString& label, double value,

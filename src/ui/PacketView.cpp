@@ -71,7 +71,7 @@ QVariant PacketModel::data(const QModelIndex& index, int role) const
     const PacketRecord& record = records_.at(static_cast<std::size_t>(index.row()));
 
     if (role == Qt::BackgroundRole) {
-        if (!record.annotation.isEmpty() || !record.decoded) {
+        if (!record.delivered || !record.annotation.isEmpty() || !record.decoded) {
             return faultColour();
         }
         return record.direction == transport::Direction::Inbound ? inboundColour()
@@ -88,7 +88,13 @@ QVariant PacketModel::data(const QModelIndex& index, int role) const
 
     if (index.column() == SequenceColumn) return record.sequence;
     if (index.column() == TimeColumn) return core::formatWallClock(record.timestampMs);
-    if (index.column() == DirectionColumn) return transport::directionName(record.direction);
+    if (index.column() == DirectionColumn) {
+        // A frame that was built but discarded by a fault rule must not read as
+        // if it went out, or the view would contradict what the peer saw.
+        return record.delivered
+                   ? transport::directionName(record.direction)
+                   : QStringLiteral("%1 ✗").arg(transport::directionName(record.direction));
+    }
     if (index.column() == DeviceColumn) {
         return record.device.isEmpty() ? record.session : record.device;
     }
@@ -382,6 +388,7 @@ void PacketView::attachToEventBus(core::EventBus* bus)
             record.description = event.messageDescription;
             record.annotation = event.annotation;
             record.decoded = event.decoded;
+            record.delivered = event.delivered;
 
             std::lock_guard lock(staging->mutex);
             staging->records.push_back(std::move(record));
@@ -500,7 +507,10 @@ void PacketView::updateDetail(const PacketRecord& record)
     };
 
     addRow(QStringLiteral("时间"), core::formatWallClock(record.timestampMs, true));
-    addRow(QStringLiteral("方向"), transport::directionName(record.direction));
+    addRow(QStringLiteral("方向"),
+           record.delivered ? transport::directionName(record.direction)
+                            : QStringLiteral("%1 (已被故障规则丢弃)")
+                                  .arg(transport::directionName(record.direction)));
     addRow(QStringLiteral("设备"), record.device);
     addRow(QStringLiteral("会话"), record.session);
     addRow(QStringLiteral("链路"), QString::number(record.linkId));
@@ -534,8 +544,12 @@ void PacketView::exportToFile()
     QTextStream stream(&file);
     stream << "sequence,timestamp,direction,device,session,link,opcode,length,hex,description,annotation\n";
 
-    for (int row = 0; row < model_->rowCount(); ++row) {
-        const PacketRecord* record = model_->recordAt(row);
+    // Export what the filters are showing, not the whole capture. Exporting the
+    // full history from a filtered view would silently disagree with the table
+    // the user is looking at.
+    for (int row = 0; row < proxy_->rowCount(); ++row) {
+        const QModelIndex source = proxy_->mapToSource(proxy_->index(row, 0));
+        const PacketRecord* record = model_->recordAt(source.row());
         if (record == nullptr) {
             continue;
         }

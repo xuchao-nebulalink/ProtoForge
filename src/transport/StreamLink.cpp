@@ -13,7 +13,18 @@ StreamLink::StreamLink(LinkId id, QIODevice* device, QString peerDescription, QO
     }
 }
 
-StreamLink::~StreamLink() = default;
+StreamLink::~StreamLink()
+{
+    // The device is a child, so ~QObject destroys it once this body returns,
+    // and a socket emits disconnected on its way out. Whoever is still
+    // listening -- typically the owning transport, which wires that signal to
+    // removeLink -- would be told about a link that no longer exists. The link
+    // owns the device outright, so cutting every connection from it here is
+    // exactly the contract the header describes.
+    if (!device_.isNull()) {
+        device_->disconnect();
+    }
+}
 
 QString StreamLink::peerDescription() const
 {

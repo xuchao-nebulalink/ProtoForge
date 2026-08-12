@@ -261,6 +261,12 @@ double RandomWalkSource::sample(qint64 elapsedMs)
     const double stepPerSecond = number("stepPerSecond", 1.0);
     const double scale = stepPerSecond * static_cast<double>(delta) / 1000.0;
 
+    // Two samples inside the same millisecond give delta == 0, and a normal
+    // distribution requires a positive sigma.
+    if (scale <= 0.0) {
+        return current_;
+    }
+
     std::normal_distribution<double> distribution(0.0, scale);
     current_ += distribution(engine_);
 
@@ -272,7 +278,10 @@ ConfigSchema RandomWalkSource::schema() const
 {
     ConfigSchema schema(QStringLiteral("随机游走"));
     schema.add(ConfigField::number(QStringLiteral("startValue"), QStringLiteral("起始值"), 0.0));
-    schema.add(ConfigField::number(QStringLiteral("stepPerSecond"), QStringLiteral("每秒漂移"), 1.0));
+    // Lower bound of zero: a negative drift rate is not a mirrored walk, it is
+    // an invalid sigma that would freeze the signal with no diagnostic.
+    schema.add(ConfigField::number(QStringLiteral("stepPerSecond"), QStringLiteral("每秒漂移"), 1.0)
+                   .range(0.0, 1e9));
     schema.add(ConfigField::number(QStringLiteral("minimum"), QStringLiteral("下限"), -1000.0));
     schema.add(ConfigField::number(QStringLiteral("maximum"), QStringLiteral("上限"), 1000.0));
     schema.add(ConfigField::integer(QStringLiteral("seed"), QStringLiteral("随机种子"), 0).asAdvanced());

@@ -179,13 +179,30 @@ ByteFilterDecision FaultRuleBase::apply(QByteArray& bytes, const ByteFilterConte
     }
 
     ++statistics_.evaluations;
+
+    const bool wasManuallyArmed = armed_;
     if (!shouldFire()) {
         return ByteFilterDecision::pass();
     }
 
-    ++statistics_.activations;
-    statistics_.lastActivationMs = core::wallClockMs();
-    return applyFault(bytes, context);
+    const ByteFilterDecision decision = applyFault(bytes, context);
+
+    // Count only what actually happened. A rule may decline once it sees the
+    // buffer (a checksum fault on a frame too short to carry one), and counting
+    // that would overstate the injected fault rate and raise the activation
+    // signal for a frame that went out untouched.
+    const bool injected = !decision.deliver || decision.delayMs > 0 || !decision.note.isEmpty();
+    if (injected) {
+        ++statistics_.activations;
+        statistics_.lastActivationMs = core::wallClockMs();
+    } else if (wasManuallyArmed) {
+        // shouldFire() consumed the arm, but the rule then declined this
+        // particular buffer. Put the arm back so an explicit operator trigger
+        // fires on the next eligible frame instead of vanishing.
+        armed_ = true;
+    }
+
+    return decision;
 }
 
 // --- PacketLossFault -------------------------------------------------------
@@ -219,6 +236,13 @@ ByteFilterDecision LatencyFault::applyFault(QByteArray& bytes, const ByteFilterC
     std::uniform_int_distribution<qint64> distribution(minimum, maximum);
     const qint64 delay = distribution(randomEngine());
 
+    if (delay <= 0) {
+        // Configured to add nothing, so nothing was injected. Returning a note
+        // here would count an activation and annotate the packet view for a
+        // frame that went out unchanged.
+        return ByteFilterDecision::pass();
+    }
+
     return ByteFilterDecision::delay(static_cast<int>(delay),
                                      QStringLiteral("延迟 %1 ms").arg(delay));
 }
@@ -241,7 +265,9 @@ ByteFilterDecision ChecksumErrorFault::applyFault(QByteArray& bytes, const ByteF
 
     const auto width = static_cast<qsizetype>(qMax<qint64>(1, integer("checksumBytes", 2)));
     if (bytes.size() < width) {
-        return ByteFilterDecision{true, 0, QStringLiteral("帧长不足，未注入校验错误")};
+        // Declining, not injecting: an empty note keeps this out of the
+        // activation count and out of the packet view annotation.
+        return ByteFilterDecision::pass();
     }
 
     // XOR the trailing checksum so the frame stays structurally valid and the

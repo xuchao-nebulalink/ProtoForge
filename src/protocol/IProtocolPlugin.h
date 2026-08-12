@@ -21,6 +21,27 @@
 
 namespace hwsim::protocol {
 
+/// Configuration keys the framework owns.
+///
+/// These are injected into the map handed to createCodec() and
+/// registerCommands() before either is called. A plugin reads them but must not
+/// declare them in its own configSchema(): they come from the endpoint, not
+/// from the user editing protocol settings, and duplicating them in the
+/// generated panel would let the two disagree.
+namespace reserved {
+
+/// "responder" for a simulated device, "initiator" for a test master.
+///
+/// Framing can depend on this. Modbus RTU carries no length field, so the
+/// expected frame size is derived from the function code and differs between
+/// requests and responses; a codec that guesses wrong silently mis-frames every
+/// reply.
+inline constexpr auto kRole = "role";
+inline constexpr auto kRoleResponder = "responder";
+inline constexpr auto kRoleInitiator = "initiator";
+
+} // namespace reserved
+
 struct HWSIM_PROTOCOL_API PluginMetadata {
     /// Stable identifier used in profiles and on the command line, e.g. "modbus".
     QString id;
@@ -67,7 +88,8 @@ public:
     /// models a slave device returns just "responder".
     [[nodiscard]] virtual QStringList supportedRoles() const
     {
-        return {QStringLiteral("responder"), QStringLiteral("initiator")};
+        return {QString::fromLatin1(reserved::kRoleResponder),
+                QString::fromLatin1(reserved::kRoleInitiator)};
     }
 
     /// Optional starter set of device parameters, as the JSON the simulator's

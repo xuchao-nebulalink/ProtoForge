@@ -1,5 +1,7 @@
 #include "HexUtils.h"
 
+#include <cstdint>
+
 namespace hwsim::core::hex {
 namespace {
 

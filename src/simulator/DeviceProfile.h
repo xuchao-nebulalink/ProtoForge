@@ -53,7 +53,14 @@ struct HWSIM_SIMULATOR_API DeviceProfile {
     [[nodiscard]] core::Result<void> applyTo(DeviceModel& device) const;
 
     /// Snapshots a live device, including its current parameter values.
-    [[nodiscard]] static DeviceProfile captureFrom(DeviceModel& device);
+    ///
+    /// A DeviceModel knows nothing about which protocol or transport it is
+    /// bound to, so those fields are carried over from `base`. Without it the
+    /// snapshot would round-trip into a profile with no protocol id and no
+    /// transport, which validate() still accepts because role has a default,
+    /// so the loss would surface only as a device that cannot be started.
+    [[nodiscard]] static DeviceProfile captureFrom(DeviceModel& device,
+                                                   const DeviceProfile& base = {});
 
     [[nodiscard]] core::Result<void> validate() const;
 };

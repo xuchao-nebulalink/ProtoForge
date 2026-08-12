@@ -240,16 +240,16 @@ void SchemaFormWidget::writeEditor(const FieldWidgets& entry, const QVariant& va
         box->setChecked(value.toBool());
     } else if (auto* combo = qobject_cast<QComboBox*>(entry.editor)) {
         combo->setCurrentIndex(qMax(0, combo->findData(value.toString())));
-    } else if (auto* spin = qobject_cast<QSpinBox*>(entry.editor)) {
-        spin->setValue(value.toInt());
-    } else if (auto* spin = qobject_cast<QDoubleSpinBox*>(entry.editor)) {
-        spin->setValue(value.toDouble());
-    } else if (auto* edit = qobject_cast<QPlainTextEdit*>(entry.editor)) {
-        edit->setPlainText(value.toString());
-    } else if (auto* edit = qobject_cast<QLineEdit*>(entry.editor)) {
-        edit->setText(value.toString());
-    } else if (auto* edit = entry.editor->findChild<QLineEdit*>(QStringLiteral("pathEdit"))) {
-        edit->setText(value.toString());
+    } else if (auto* intSpin = qobject_cast<QSpinBox*>(entry.editor)) {
+        intSpin->setValue(value.toInt());
+    } else if (auto* doubleSpin = qobject_cast<QDoubleSpinBox*>(entry.editor)) {
+        doubleSpin->setValue(value.toDouble());
+    } else if (auto* textEdit = qobject_cast<QPlainTextEdit*>(entry.editor)) {
+        textEdit->setPlainText(value.toString());
+    } else if (auto* lineEdit = qobject_cast<QLineEdit*>(entry.editor)) {
+        lineEdit->setText(value.toString());
+    } else if (auto* pathEdit = entry.editor->findChild<QLineEdit*>(QStringLiteral("pathEdit"))) {
+        pathEdit->setText(value.toString());
     }
 }
 

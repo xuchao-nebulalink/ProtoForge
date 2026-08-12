@@ -111,6 +111,9 @@ public:
     [[nodiscard]] core::Result<QVariant> coerce(const QVariant& value) const;
 
 private:
+    /// Typed zero for this parameter's declared type.
+    [[nodiscard]] QVariant zeroValue() const;
+
     ParameterDefinition definition_;
     QVariant value_;
     qint64 lastChangedMs_{0};

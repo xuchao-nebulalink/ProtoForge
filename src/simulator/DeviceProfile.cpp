@@ -179,9 +179,16 @@ Result<void> DeviceProfile::applyTo(DeviceModel& device) const
     return core::success();
 }
 
-DeviceProfile DeviceProfile::captureFrom(DeviceModel& device)
+DeviceProfile DeviceProfile::captureFrom(DeviceModel& device, const DeviceProfile& base)
 {
+    // Everything the device model cannot know about itself comes from the base.
     DeviceProfile profile;
+    profile.description = base.description;
+    profile.protocolId = base.protocolId;
+    profile.protocolConfig = base.protocolConfig;
+    profile.transportConfig = base.transportConfig;
+    profile.role = base.role;
+
     profile.name = device.deviceName();
     profile.parameters = device.parameters().definitionsToJson();
     profile.stateMachine = device.stateMachine().toJson();

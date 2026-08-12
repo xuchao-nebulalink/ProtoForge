@@ -23,7 +23,10 @@ class HWSIM_SCRIPTING_API ScriptEngine : public QObject {
     Q_OBJECT
 
 public:
-    struct Outcome {
+    // Carries the export macro of its own: MSVC does not propagate dllexport
+    // from an enclosing class to a nested one, so summary() would otherwise
+    // compile into the DLL without being visible to anything linking it.
+    struct HWSIM_SCRIPTING_API Outcome {
         bool completed{false};
         bool passed{false};
         int checkCount{0};

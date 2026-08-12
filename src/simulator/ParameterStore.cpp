@@ -226,6 +226,8 @@ Result<void> ParameterStore::writeAddressRange(quint32 startAddress, const QVect
     std::vector<ParameterChange> changes;
     changes.reserve(static_cast<std::size_t>(values.size()));
 
+    Result<void> outcome = core::success();
+
     {
         std::unique_lock lock(mutex_);
 
@@ -256,7 +258,11 @@ Result<void> ParameterStore::writeAddressRange(quint32 startAddress, const QVect
             ParameterChange change;
             if (const auto applied = applyWrite(*parameter, values.at(index), origin, change);
                 applied.hasError()) {
-                return applied;
+                // Pre-validation should make this unreachable, but returning
+                // here without notifying would leave already-written registers
+                // invisible to the UI, the event bus and the signal engine.
+                outcome = applied;
+                break;
             }
             if (change.previousValue != change.newValue) {
                 changes.push_back(std::move(change));
@@ -267,7 +273,7 @@ Result<void> ParameterStore::writeAddressRange(quint32 startAddress, const QVect
     for (const ParameterChange& change : changes) {
         notify(change);
     }
-    return core::success();
+    return outcome;
 }
 
 // --- Introspection ---------------------------------------------------------

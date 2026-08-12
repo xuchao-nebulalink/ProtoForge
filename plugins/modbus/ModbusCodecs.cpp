@@ -3,6 +3,7 @@
 #include <core/Crc.h>
 #include <core/Endian.h>
 #include <core/HexUtils.h>
+#include <protocol/IProtocolPlugin.h>
 
 #include <optional>
 
@@ -141,10 +142,18 @@ ModbusCodecOptions ModbusCodecOptions::fromConfig(const QVariantMap& config)
     ModbusCodecOptions options;
     options.unitId = static_cast<quint8>(config.value(QStringLiteral("unitId"), 1).toUInt());
     options.acceptAnyUnitId = config.value(QStringLiteral("acceptAnyUnitId"), false).toBool();
+
     options.decodesRequests =
-        config.value(QStringLiteral("role"), QStringLiteral("responder")).toString()
-        != QStringLiteral("initiator");
+        config.value(QString::fromLatin1(protocol::reserved::kRole),
+                     QString::fromLatin1(protocol::reserved::kRoleResponder))
+            .toString()
+        != QString::fromLatin1(protocol::reserved::kRoleInitiator);
     return options;
+}
+
+bool ModbusCodecOptions::configHasRole(const QVariantMap& config)
+{
+    return config.contains(QString::fromLatin1(protocol::reserved::kRole));
 }
 
 // --- RTU -------------------------------------------------------------------
@@ -181,10 +190,14 @@ FrameScanResult ModbusRtuCodec::scan(std::span<const std::byte> buffer,
         buffer.subspan(length.total - 2, 2));
 
     if (computed != received) {
+        // Drop a single byte, not the whole computed length. That length came
+        // from a header we have just failed to validate, and the usual cause of
+        // a CRC failure is junk *before* a real frame, so consuming the guessed
+        // length would eat the following frame's header and cascade the loss.
         return FrameScanResult::discard(
-            length.total, QStringLiteral("CRC mismatch: computed %1, received %2")
-                              .arg(computed, 4, 16, QLatin1Char('0'))
-                              .arg(received, 4, 16, QLatin1Char('0')));
+            1, QStringLiteral("CRC mismatch: computed %1, received %2")
+                   .arg(computed, 4, 16, QLatin1Char('0'))
+                   .arg(received, 4, 16, QLatin1Char('0')));
     }
 
     const auto unitId = std::to_integer<quint8>(buffer[0]);
@@ -236,7 +249,17 @@ ConfigSchema ModbusRtuCodec::configSchema() const
 
 Result<void> ModbusRtuCodec::configure(const QVariantMap& config)
 {
+    const bool previousDecodesRequests = options_.decodesRequests;
     options_ = ModbusCodecOptions::fromConfig(config);
+
+    // Re-applying settings from the generated panel must not change the framing
+    // direction. That panel is built from this plugin's schema, which by
+    // contract excludes the reserved role key, so a plain fromConfig() would
+    // flip an initiator back to parsing requests on every settings change --
+    // and for RTU that silently mis-frames every response.
+    if (!ModbusCodecOptions::configHasRole(config)) {
+        options_.decodesRequests = previousDecodesRequests;
+    }
     return core::success();
 }
 
@@ -346,7 +369,14 @@ ConfigSchema ModbusTcpCodec::configSchema() const
 
 Result<void> ModbusTcpCodec::configure(const QVariantMap& config)
 {
+    const bool previousDecodesRequests = options_.decodesRequests;
     options_ = ModbusCodecOptions::fromConfig(config);
+
+    // Framing here comes from the MBAP length field, so the role does not
+    // affect it; preserved anyway to keep the two codecs behaving alike.
+    if (!ModbusCodecOptions::configHasRole(config)) {
+        options_.decodesRequests = previousDecodesRequests;
+    }
     return core::success();
 }
 

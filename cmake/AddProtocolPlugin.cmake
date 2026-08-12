@@ -9,7 +9,7 @@
 #
 #   hwsim_add_protocol_plugin(
 #       NAME       modbus
-#       CLASS_NAME hwsim::plugins::modbus::ModbusPlugin
+#       CLASS_NAME ModbusPlugin          # unqualified, as Qt writes it into the metadata
 #       SOURCES    ModbusPlugin.cpp ...
 #       DEPS       hwsim::simulator
 #       LINKAGE    DEFAULT|DYNAMIC|STATIC   # optional, defaults to HWSIM_PLUGIN_LINKAGE

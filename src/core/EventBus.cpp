@@ -17,9 +17,10 @@ SubscriptionId EventBus::addEntry(TypeId type, Entry entry)
     auto& entries = subscribers_[type];
 
     // A context-bound subscription leaves a null QPointer behind when its
-    // context is destroyed. Sweeping here keeps the list from growing for the
-    // whole session as panels and dialogs come and go, and keeps
-    // subscriberCount() honest.
+    // context is destroyed. Sweeping the list for this event type on every new
+    // subscription to it keeps that list from growing for the whole session as
+    // panels and dialogs come and go. Event types nobody subscribes to again
+    // are not swept, so subscriberCount() can still read high for those.
     std::erase_if(entries, [](const Entry& existing) {
         return existing.hasContext && existing.context.isNull();
     });

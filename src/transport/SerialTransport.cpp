@@ -121,7 +121,12 @@ core::Result<void> SerialTransport::openImpl(const TransportConfig& config)
             return;
         }
         const QString reason = raw->errorString();
-        reportError(core::makeError(core::ErrorCode::IoError, reason, config().portName()));
+
+        // this->config(), not config(): the enclosing function has a parameter
+        // of the same name, which name lookup finds first and which the lambda
+        // does not capture.
+        reportError(core::makeError(core::ErrorCode::IoError, reason,
+                                    this->config().portName()));
 
         // Resource errors mean the adapter was unplugged; the link is dead.
         if (error == QSerialPort::ResourceError || error == QSerialPort::PermissionError) {
@@ -143,8 +148,9 @@ core::Result<void> SerialTransport::openImpl(const TransportConfig& config)
 
 void SerialTransport::closeImpl()
 {
-    // The port is owned by its StreamLink, which ITransport::close() has
-    // already retired by the time this runs.
+    // Only drops observer state. The port itself belongs to its StreamLink and
+    // is destroyed with it, either by ITransport::close() before this runs or
+    // by ~ITransport afterwards when the destructor calls straight in here.
     port_ = nullptr;
     currentLinkId_ = kInvalidLinkId;
 }

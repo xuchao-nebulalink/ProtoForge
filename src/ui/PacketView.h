@@ -38,6 +38,9 @@ struct HWSIM_UI_API PacketRecord {
     QString description;
     QString annotation;
     bool decoded{false};
+
+    /// False for an outbound frame a fault rule discarded before transmission.
+    bool delivered{true};
 };
 
 class HWSIM_UI_API PacketModel : public QAbstractTableModel {

@@ -146,6 +146,10 @@ Result<MessagePtr> WriteSingleRegisterHandler::handle(const WriteSingleRegisterR
 Result<MessagePtr> WriteMultipleCoilsHandler::handle(const WriteMultipleCoilsRequest& request,
                                                      ExecutionContext& context)
 {
+    if (request.values.size() > map_.maxWriteBits) {
+        return exceptionOf(fc::kWriteMultipleCoils, ExceptionCode::IllegalDataValue);
+    }
+
     const auto base = map_.resolve(fc::kWriteMultipleCoils, request.startAddress);
     if (base.hasError()) {
         return exceptionFrom(fc::kWriteMultipleCoils, base.error());

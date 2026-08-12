@@ -27,8 +27,10 @@ namespace {
 
 bool isInitiator(const QVariantMap& config)
 {
-    return config.value(QStringLiteral("role"), QStringLiteral("responder")).toString()
-           == QStringLiteral("initiator");
+    return config.value(QString::fromLatin1(hwsim::protocol::reserved::kRole),
+                        QString::fromLatin1(hwsim::protocol::reserved::kRoleResponder))
+               .toString()
+           == QString::fromLatin1(hwsim::protocol::reserved::kRoleInitiator);
 }
 
 QJsonObject registerDefinition(const QString& key, quint32 address, const QString& label,
@@ -91,6 +93,16 @@ Result<FrameCodecPtr> ModbusPlugin::createCodec(const QVariantMap& config) const
     const QString variant = config.value(QStringLiteral("variant"), QStringLiteral("rtu")).toString();
 
     if (variant == QStringLiteral("rtu")) {
+        // RTU has no length field, so the expected frame size is derived from
+        // the function code and differs between requests and responses. Getting
+        // the role wrong mis-frames every reply rather than failing outright,
+        // which is worth a warning. TCP is unaffected: MBAP carries a length.
+        if (!ModbusCodecOptions::configHasRole(config)) {
+            HWSIM_LOG_WARNING(kLogCategory)
+                << "RTU codec created without the reserved '"
+                << QString::fromLatin1(hwsim::protocol::reserved::kRole)
+                << "' key; assuming responder. Responses will be mis-framed if this is a master.";
+        }
         return FrameCodecPtr(std::make_unique<ModbusRtuCodec>(options));
     }
     if (variant == QStringLiteral("tcp")) {

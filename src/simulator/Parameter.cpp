@@ -191,8 +191,36 @@ QVariant Parameter::engineeringValue() const
 void Parameter::resetToDefault()
 {
     const auto coerced = coerce(definition_.defaultValue);
-    value_ = coerced.hasValue() ? coerced.value() : definition_.defaultValue;
+    if (coerced.hasValue()) {
+        value_ = coerced.value();
+    } else {
+        // A definition with no "default" leaves an invalid QVariant, which
+        // would read as 0 in one place and as an empty string in another. Fall
+        // back to a typed zero, run through coerce() so that a declared minimum
+        // still applies: a parameter with minimum 10 must not start at 0.
+        const auto zeroed = coerce(zeroValue());
+        value_ = zeroed.hasValue() ? zeroed.value() : zeroValue();
+    }
     lastChangedMs_ = core::monotonicMs();
+}
+
+QVariant Parameter::zeroValue() const
+{
+    switch (definition_.type) {
+    case ParameterType::Bool:
+        return false;
+    case ParameterType::Int:
+    case ParameterType::UInt:
+        return QVariant::fromValue<qint64>(0);
+    case ParameterType::Float:
+    case ParameterType::Double:
+        return 0.0;
+    case ParameterType::String:
+        return QString{};
+    case ParameterType::Bytes:
+        return QByteArray{};
+    }
+    return QVariant{};
 }
 
 Result<QVariant> Parameter::coerce(const QVariant& input) const

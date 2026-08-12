@@ -2,6 +2,8 @@
 
 #include "ITransport.h"
 
+#include <QPointer>
+
 class QTcpSocket;
 class QTimer;
 
@@ -22,7 +24,11 @@ public:
 
     [[nodiscard]] TransportKind kind() const noexcept override { return TransportKind::TcpClient; }
 
-    /// Aborts any pending reconnect and tries again immediately.
+    /// Cancels the reconnect timer, abandons a connection attempt still in
+    /// progress, and dials again immediately. Does nothing when a link is
+    /// already up: use close() first to drop it.
+    ///
+    /// Provided for the UI's "reconnect" action; nothing in the framework calls it.
     void reconnectNow();
 
 protected:
@@ -35,7 +41,11 @@ private:
     void onDisconnected();
     void scheduleReconnect(const QString& reason);
 
-    QTcpSocket* socket_{nullptr};
+    /// QPointer, not a raw pointer: once a connection succeeds the socket is
+    /// owned by its StreamLink, and ITransport::close() destroys the links
+    /// before it calls closeImpl(). A raw pointer would be dangling there.
+    QPointer<QTcpSocket> socket_;
+
     QTimer* reconnectTimer_{nullptr};
     LinkId currentLinkId_{kInvalidLinkId};
     bool autoReconnect_{true};

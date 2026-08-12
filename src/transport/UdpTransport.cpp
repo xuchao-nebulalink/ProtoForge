@@ -75,7 +75,10 @@ core::Result<void> UdpTransport::openImpl(const TransportConfig& config)
 {
     discoverPeers_ = config.value(QStringLiteral("peerMode"), QStringLiteral("discover")).toString()
                      != QStringLiteral("fixed");
-    maxPeers_ = config.value(QStringLiteral("maxConnections"), 64).toInt();
+    // Clamped rather than trusted: the schema declares a range, but a config
+    // built in code bypasses normalise(), and a zero here would make the
+    // discover-mode ceiling reject every peer.
+    maxPeers_ = qMax(1, config.value(QStringLiteral("maxConnections"), 64).toInt());
 
     // Validate the fixed peer before binding. ITransport::close() is a no-op on
     // a transport that never reported itself open, so returning an error after

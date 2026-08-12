@@ -81,6 +81,14 @@ void DeviceTreeModel::setDevices(const QVector<DeviceNodeInfo>& devices)
 
 void DeviceTreeModel::updateDevice(const DeviceNodeInfo& device)
 {
+    // An empty id means the caller asked about a device that no longer exists,
+    // which happens when a queued update from a worker thread arrives after the
+    // device was removed. Treating it as "not found, so add it" would leave a
+    // nameless ghost row in the tree.
+    if (device.deviceId.isEmpty()) {
+        return;
+    }
+
     QStandardItem* item = findDeviceItem(device.deviceId);
     if (item == nullptr) {
         item = makeItem(describeDevice(device), DeviceTreeNodeType::Device, device.deviceId);

@@ -301,7 +301,16 @@ bool DeviceStateMachine::transitionMatches(const TransitionDefinition& transitio
     if (!transition.event.isEmpty() && transition.event != eventName) {
         return false;
     }
-    if (transition.to == currentState_) {
+
+    // Self-transitions are allowed only when an event triggers them, so that
+    // re-running a state's parameterOverrides stays possible on demand.
+    //
+    // Timed and condition-driven self-transitions are rejected. stateEnteredMs_
+    // is shared by every transition out of the current state, and re-entering
+    // resets it: a {A -> A, afterMs: 100} rule would keep pushing the clock
+    // back and a {A -> B, afterMs: 5000} rule alongside it could never reach
+    // its deadline, trapping the machine in A forever.
+    if (transition.to == currentState_ && transition.event.isEmpty()) {
         return false;
     }
 
@@ -387,7 +396,11 @@ QJsonObject DeviceStateMachine::toJson() const
     json.insert(QStringLiteral("states"), stateArray);
     json.insert(QStringLiteral("transitions"), transitionArray);
     if (!states_.isEmpty()) {
-        json.insert(QStringLiteral("initial"), states_.first().name);
+        // The configured initial state, not merely the first one defined:
+        // writing the latter would silently change where a reloaded machine
+        // starts.
+        json.insert(QStringLiteral("initial"),
+                    initialState_.isEmpty() ? states_.first().name : initialState_);
     }
     return json;
 }

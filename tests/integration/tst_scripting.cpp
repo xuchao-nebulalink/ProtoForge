@@ -248,13 +248,28 @@ private slots:
     {
         ScriptEngine engine(host_);
         const auto outcome = engine.runSource(QStringLiteral(
-            "hwsim.check(hwsim.sendRaw('dut', '01 03 00 00 00 0A'), 'raw send accepted');"
-            "hwsim.check(!hwsim.sendRaw('dut', 'not hex'), 'garbage rejected');"));
+            "hwsim.check(hwsim.sendRaw('dut', '01 03 00 00 00 0A'), 'raw send accepted');"));
 
         QVERIFY(outcome.completed);
         QVERIFY2(outcome.passed, qPrintable(outcome.failures.join(QLatin1Char('\n'))));
         QCOMPARE(host_.sentBytes.size(), 1);
         QCOMPARE(host_.sentBytes.first(), QByteArray::fromHex("01030000000A"));
+    }
+
+    void rawSendRejectsMalformedHex()
+    {
+        ScriptEngine engine(host_);
+        const auto outcome = engine.runSource(QStringLiteral(
+            "hwsim.check(!hwsim.sendRaw('dut', 'not hex'), 'garbage rejected');"));
+
+        // The check itself holds -- sendRaw does return false -- yet the run is
+        // still a failure, and that is the contract: every ScriptApi call
+        // records its own errors, so a scenario cannot sail past a bad argument
+        // just because it forgot to inspect a return value.
+        QVERIFY(outcome.completed);
+        QVERIFY(!outcome.passed);
+        QVERIFY(host_.sentBytes.isEmpty());
+        QVERIFY(outcome.failures.join(QLatin1Char('\n')).contains(QStringLiteral("not valid hex")));
     }
 
     void waitForValueTimesOutAndReportsIt()

@@ -356,8 +356,7 @@ struct Rig {
             return sent.error();
         }
 
-        QTRY_VERIFY_WITH_TIMEOUT(outcome.has_value(), timeoutMs + 500);
-        return *outcome;
+        return await(outcome, timeoutMs);
     }
 
     Result<MessagePtr> write(quint16 address, quint16 value, int timeoutMs = 400)
@@ -374,8 +373,24 @@ struct Rig {
             return sent.error();
         }
 
-        QTRY_VERIFY_WITH_TIMEOUT(outcome.has_value(), timeoutMs + 500);
-        return *outcome;
+        return await(outcome, timeoutMs);
+    }
+
+private:
+    /// Spins the event loop until the reply lands or the wait runs out.
+    ///
+    /// QTRY_VERIFY_WITH_TIMEOUT expands to a bare `return;` on failure, so it
+    /// only compiles inside a void test slot. qWaitFor is the plain-function
+    /// equivalent, which lets a timeout surface as a Result the caller can
+    /// assert on rather than as an opaque test abort.
+    static Result<MessagePtr> await(std::optional<Result<MessagePtr>>& slot, int timeoutMs)
+    {
+        const int budget = timeoutMs + 500;
+        if (!QTest::qWaitFor([&slot] { return slot.has_value(); }, budget)) {
+            return makeError(ErrorCode::Timeout,
+                             QStringLiteral("no reply within %1 ms").arg(budget));
+        }
+        return *slot;
     }
 };
 

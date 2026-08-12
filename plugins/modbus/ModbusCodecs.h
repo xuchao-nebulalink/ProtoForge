@@ -29,6 +29,11 @@ struct ModbusCodecOptions {
 
     [[nodiscard]] static core::ConfigSchema schema();
     [[nodiscard]] static ModbusCodecOptions fromConfig(const QVariantMap& config);
+
+    /// Whether the map carries the framework's reserved role key. A settings
+    /// map produced from this plugin's own schema will not, because role is
+    /// owned by the endpoint rather than by the protocol panel.
+    [[nodiscard]] static bool configHasRole(const QVariantMap& config);
 };
 
 /// Modbus RTU: [unit][function][data][crc16-le]

@@ -3,7 +3,11 @@
 # main.cpp is identical either way.
 hwsim_generate_static_plugin_imports(HWSIM_STATIC_PLUGIN_IMPORTS)
 
-qt_add_executable(hwsim
+# Plain add_executable, not qt_add_executable: the latter installs deferred
+# finalizers meant for Android, iOS and static Qt builds. On desktop with a
+# shared Qt they add nothing here except a QML import scan this project has no
+# use for, and that scanner cannot handle a non-ASCII build path.
+add_executable(hwsim
     main.cpp
     CliOptions.h
     CliOptions.cpp

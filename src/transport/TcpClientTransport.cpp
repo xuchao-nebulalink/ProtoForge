@@ -40,7 +40,9 @@ void TcpClientTransport::closeImpl()
         reconnectTimer_->deleteLater();
         reconnectTimer_ = nullptr;
     }
-    if (socket_ != nullptr) {
+    // QPointer already nulls itself if the link destroyed the socket, so this
+    // only runs while the socket really is still alive.
+    if (!socket_.isNull()) {
         // Detach before letting go. A socket that outlives this close, because
         // its StreamLink owns it, would otherwise still be wired to onConnected
         // and could raise a link on a stale connection after a later open().
@@ -52,8 +54,8 @@ void TcpClientTransport::closeImpl()
             socket_->abort();
             socket_->deleteLater();
         }
-        socket_ = nullptr;
     }
+    socket_ = nullptr;
     currentLinkId_ = kInvalidLinkId;
 }
 
@@ -66,7 +68,7 @@ void TcpClientTransport::reconnectNow()
     // Abandon an attempt that is still in ConnectingState, otherwise
     // startConnection() sees a live socket_ and returns without doing anything,
     // which makes this function a no-op exactly when it is most wanted.
-    if (socket_ != nullptr && currentLinkId_ == kInvalidLinkId) {
+    if (!socket_.isNull() && currentLinkId_ == kInvalidLinkId) {
         disconnect(socket_, nullptr, this, nullptr);
         socket_->abort();
         socket_->deleteLater();
@@ -78,7 +80,7 @@ void TcpClientTransport::reconnectNow()
 
 void TcpClientTransport::startConnection()
 {
-    if (currentLinkId_ != kInvalidLinkId || socket_ != nullptr) {
+    if (currentLinkId_ != kInvalidLinkId || !socket_.isNull()) {
         return;
     }
 
@@ -91,7 +93,8 @@ void TcpClientTransport::startConnection()
     // and leave the transport reconnecting forever.
     connect(socket_, &QTcpSocket::errorOccurred, this,
             [this, socket = socket_](QAbstractSocket::SocketError) {
-                if (socket != socket_ || currentLinkId_ != kInvalidLinkId) {
+                if (socket.isNull() || socket != socket_
+                    || currentLinkId_ != kInvalidLinkId) {
                     return;
                 }
                 const QString reason = socket->errorString();
@@ -106,14 +109,14 @@ void TcpClientTransport::startConnection()
 
 void TcpClientTransport::onConnected()
 {
-    if (socket_ == nullptr) {
+    if (socket_.isNull()) {
         return;
     }
 
     const QString peer =
         QStringLiteral("%1:%2").arg(socket_->peerAddress().toString()).arg(socket_->peerPort());
 
-    auto link = std::make_unique<StreamLink>(ILink::allocateId(), socket_, peer);
+    auto link = std::make_unique<StreamLink>(ILink::allocateId(), socket_.data(), peer);
     StreamLink* raw = link.get();
     currentLinkId_ = raw->id();
 
@@ -147,7 +150,7 @@ void TcpClientTransport::scheduleReconnect(const QString& reason)
     }
 
     // A failed socket cannot be reused; drop it so startConnection makes a new one.
-    if (socket_ != nullptr && currentLinkId_ == kInvalidLinkId) {
+    if (!socket_.isNull() && currentLinkId_ == kInvalidLinkId) {
         disconnect(socket_, nullptr, this, nullptr);
         socket_->deleteLater();
         socket_ = nullptr;

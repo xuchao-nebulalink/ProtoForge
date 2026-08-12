@@ -18,6 +18,21 @@ ConfigField makeField(QString key, QString label, FieldType type, QVariant defau
     return field;
 }
 
+/// Whether a field can fall back on its default when no value is supplied.
+///
+/// Deliberately not QVariant::isNull(): Qt 6 narrowed that to invalid variants
+/// and null pointers, so QVariant(QString()) -- what a field declared with an
+/// empty default holds -- now answers "not null". Relying on it would let every
+/// required field pass validation with nothing behind it.
+bool hasUsableDefault(const ConfigField& field)
+{
+    if (!field.defaultValue.isValid() || field.defaultValue.isNull()) {
+        return false;
+    }
+    return !(field.defaultValue.typeId() == QMetaType::QString
+             && field.defaultValue.toString().isEmpty());
+}
+
 bool isNumeric(FieldType type)
 {
     return type == FieldType::Integer || type == FieldType::Double
@@ -248,7 +263,7 @@ Result<void> ConfigSchema::validate(const QVariantMap& values) const
         const QVariant value = values.value(field.key);
 
         if (!present || !value.isValid() || (value.typeId() == QMetaType::QString && value.toString().isEmpty())) {
-            if (field.required && field.defaultValue.isNull()) {
+            if (field.required && !hasUsableDefault(field)) {
                 return makeError(ErrorCode::ConfigInvalid,
                                  QStringLiteral("required field '%1' is missing").arg(field.label),
                                  field.key);

@@ -86,6 +86,13 @@ private:
     std::vector<std::unique_ptr<ILink>> links_;
     std::vector<std::unique_ptr<ILink>> retired_;
     bool garbageCollectionScheduled_{false};
+
+    /// Set for the whole of ~ITransport. Destroying a link tears down its
+    /// socket, and sockets emit on the way out; those signals are still wired
+    /// to this object, because QObject only severs them in ~QObject, which runs
+    /// after this class's destructor body. The flag turns the resulting
+    /// re-entry into removeLink() into a no-op.
+    bool tearingDown_{false};
 };
 
 } // namespace hwsim::transport

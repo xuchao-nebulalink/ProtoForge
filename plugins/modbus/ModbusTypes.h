@@ -57,8 +57,11 @@ struct AddressMap {
     quint32 inputRegisterBase{30000};
     quint32 holdingRegisterBase{40000};
 
+    /// Specification limits: 0x07D0 bits and 0x007D registers per read,
+    /// 0x07B0 coils and 0x007B registers per write.
     quint16 maxReadBits{2000};
     quint16 maxReadRegisters{125};
+    quint16 maxWriteBits{1968};
     quint16 maxWriteRegisters{123};
 
     /// Device address for a Modbus offset under the given function code.

@@ -383,7 +383,9 @@ FrameScanResult TlvCodec::scan(std::span<const std::byte> buffer, transport::Dir
         buffer.subspan(total - kChecksumSize, kChecksumSize));
 
     if (computed != received) {
-        return FrameScanResult::discard(total,
+        // One byte, so that a corrupted length field cannot make us swallow the
+        // start of the next frame. The start byte gives us a cheap re-anchor.
+        return FrameScanResult::discard(1,
                                         QStringLiteral("CRC mismatch: computed %1, received %2")
                                             .arg(computed, 4, 16, QLatin1Char('0'))
                                             .arg(received, 4, 16, QLatin1Char('0')));

@@ -28,15 +28,21 @@ bool PendingRequestTable::resolve(const QString& correlationKey, MessagePtr resp
 
     auto match = entries_.end();
     if (correlationKey.isEmpty()) {
+        // The codec offers no correlation token, so the protocol is strictly
+        // serial on the wire and the oldest outstanding request is the only
+        // thing this can be answering.
         match = entries_.begin();
     } else {
         match = std::find_if(entries_.begin(), entries_.end(), [&correlationKey](const Entry& entry) {
             return entry.correlationKey == correlationKey;
         });
-        // A codec that produces keys may still receive a reply without one;
-        // fall back to oldest-first rather than dropping the response.
+
+        // A key that matches nothing is not an answer to anything we sent.
+        // Falling back to the oldest entry here would complete the wrong
+        // request and make transaction ids decorative, and it would let a
+        // peer-initiated request be swallowed as if it were a reply.
         if (match == entries_.end()) {
-            match = entries_.begin();
+            return false;
         }
     }
 

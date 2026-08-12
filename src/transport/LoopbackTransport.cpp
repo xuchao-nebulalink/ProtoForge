@@ -41,7 +41,17 @@ qint64 LoopbackLink::writeBytes(std::span<const std::byte> data)
                                     QStringLiteral("loopback endpoint is gone")));
         return -1;
     }
-    return owner_->transmitToPeer(core::hex::toByteArray(data));
+
+    const qint64 written = owner_->transmitToPeer(core::hex::toByteArray(data));
+    if (written < 0) {
+        // transmitToPeer just returns -1 when the pair has been broken. Report
+        // it here so the failure is visible: ILink::send only reports for a
+        // closed link, and the layers above rely on the link implementation to
+        // explain why a write failed.
+        reportError(core::makeError(core::ErrorCode::NotConnected,
+                                    QStringLiteral("loopback peer is detached"), peerName_));
+    }
+    return written;
 }
 
 void LoopbackLink::closeImpl() {}

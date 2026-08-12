@@ -102,7 +102,10 @@ public:
             return makeError(ErrorCode::Internal,
                              QStringLiteral("creator for '%1' returned null").arg(keyToString(key)));
         }
-        return instance;
+        // Explicit move: the return type differs from the variable's type, so
+        // without C++20's extended implicit move this would pick unique_ptr's
+        // deleted copy constructor.
+        return std::move(instance);
     }
 
     [[nodiscard]] std::vector<Key> keys() const

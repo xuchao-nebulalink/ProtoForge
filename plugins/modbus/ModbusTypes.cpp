@@ -96,6 +96,7 @@ AddressMap AddressMap::fromConfig(const QVariantMap& config)
     map.holdingRegisterBase = config.value(key("holdingRegisterBase"), 40000).toUInt();
     map.maxReadBits = static_cast<quint16>(config.value(key("maxReadBits"), 2000).toUInt());
     map.maxReadRegisters = static_cast<quint16>(config.value(key("maxReadRegisters"), 125).toUInt());
+    map.maxWriteBits = static_cast<quint16>(config.value(key("maxWriteBits"), 1968).toUInt());
     map.maxWriteRegisters =
         static_cast<quint16>(config.value(key("maxWriteRegisters"), 123).toUInt());
     return map;
@@ -125,6 +126,10 @@ ConfigSchema AddressMap::schema()
                    .asAdvanced());
     schema.add(ConfigField::integer(key("maxReadRegisters"), QStringLiteral("单次最大读寄存器数"), 125)
                    .range(1, 125)
+                   .inGroup(QStringLiteral("限制"))
+                   .asAdvanced());
+    schema.add(ConfigField::integer(key("maxWriteBits"), QStringLiteral("单次最大写线圈数"), 1968)
+                   .range(1, 1968)
                    .inGroup(QStringLiteral("限制"))
                    .asAdvanced());
     schema.add(ConfigField::integer(key("maxWriteRegisters"), QStringLiteral("单次最大写寄存器数"), 123)

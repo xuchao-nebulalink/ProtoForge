@@ -6,6 +6,7 @@
 
 #include <deque>
 #include <functional>
+#include <vector>
 
 namespace hwsim::protocol {
 
@@ -32,9 +33,15 @@ public:
     quint64 add(QString correlationKey, MessagePtr request, Callback callback, int timeoutMs,
                 qint64 nowMs);
 
-    /// Delivers `response` to the matching request. An empty key matches the
-    /// oldest outstanding entry. Returns false when nothing was waiting, which
-    /// tells the session the frame is unsolicited and should go to a handler.
+    /// Delivers `response` to the matching request.
+    ///
+    /// An empty key matches the oldest outstanding entry, which is correct for
+    /// a protocol with no correlation token because such protocols are serial
+    /// on the wire. A non-empty key must match exactly.
+    ///
+    /// Returns false when nothing was waiting, and also when a non-empty key
+    /// matched nothing. The session relies on that second case to tell an
+    /// unsolicited frame apart from a reply and route it to a handler.
     bool resolve(const QString& correlationKey, MessagePtr response);
 
     /// Fails every entry whose deadline has passed. Returns the expired entries

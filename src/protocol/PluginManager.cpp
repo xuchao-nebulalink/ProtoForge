@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonObject>
 #include <QLibrary>
 #include <QPluginLoader>
 

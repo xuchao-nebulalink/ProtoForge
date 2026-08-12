@@ -123,7 +123,8 @@ private:
     void checkTimeouts();
     void updateTimeoutTimer();
 
-    void publishFrame(const Frame& frame, bool decoded, QString description, QString annotation);
+    void publishFrame(const Frame& frame, bool decoded, QString description, QString annotation,
+                      bool delivered = true);
     void publishError(const core::Error& error, const QByteArray& raw);
 
     transport::ILink* link_{nullptr};

@@ -95,6 +95,35 @@ void ProtocolSession::ingest(const QByteArray& data)
 
 void ProtocolSession::drainBuffer()
 {
+    // Codecs resynchronise a byte at a time, so a single corrupted frame can
+    // produce hundreds of consecutive Discard results. Reporting each one would
+    // put an event storm on the bus and a wall of lines in the log for what is,
+    // to the reader, one event. Consecutive discards are accumulated and
+    // published as a single resync once the stream re-synchronises.
+    QByteArray discardedRun;
+    QString discardReason;
+
+    const auto reportResync = [this, &discardedRun, &discardReason] {
+        if (discardedRun.isEmpty()) {
+            return;
+        }
+
+        HWSIM_LOG_DEBUG(kLogCategory) << options_.name << " discarded " << discardedRun.size()
+                                      << " bytes while resynchronising: " << discardReason;
+
+        if (options_.publishEvents && eventBus_ != nullptr) {
+            ProtocolResyncEvent event;
+            event.sessionName = options_.name;
+            event.linkId = link_->id();
+            event.discarded = discardedRun;
+            event.reason = discardReason;
+            eventBus_->publish(event);
+        }
+
+        discardedRun.clear();
+        discardReason.clear();
+    };
+
     while (!buffer_.isEmpty()) {
         const FrameScanResult scan = codec_->scan(buffer_.readable(), transport::Direction::Inbound);
 
@@ -107,25 +136,37 @@ void ProtocolSession::drainBuffer()
             // Discard with consumed == 0 would spin here forever.
             const std::size_t drop = scan.consumed > 0 ? scan.consumed : 1;
             const QByteArray junk = buffer_.take(drop);
+
             counters_.resyncBytes += static_cast<quint64>(junk.size());
-
-            HWSIM_LOG_DEBUG(kLogCategory)
-                << options_.name << " discarded " << junk.size() << " bytes: " << scan.diagnostic;
-
-            if (options_.publishEvents && eventBus_ != nullptr) {
-                ProtocolResyncEvent event;
-                event.sessionName = options_.name;
-                event.linkId = link_->id();
-                event.discarded = junk;
-                event.reason = scan.diagnostic;
-                eventBus_->publish(event);
+            discardedRun.append(junk);
+            if (discardReason.isEmpty()) {
+                discardReason = scan.diagnostic;
             }
             continue;
         }
 
+        // A frame parsed, so the run of junk before it is now a closed episode.
+        reportResync();
+
         Frame frame = scan.frame;
-        const QByteArray consumed = buffer_.take(scan.consumed > 0 ? scan.consumed
-                                                                   : static_cast<std::size_t>(frame.raw.size()));
+
+        const std::size_t consumedCount =
+            scan.consumed > 0 ? scan.consumed : static_cast<std::size_t>(frame.raw.size());
+        if (consumedCount == 0) {
+            // A codec that reports FrameReady without consuming anything would
+            // spin this loop forever. Treat it as a codec bug and resynchronise
+            // rather than hanging the transport thread.
+            publishError(core::makeError(core::ErrorCode::Internal,
+                                         QStringLiteral("codec '%1' returned a frame of zero length")
+                                             .arg(codec_->name()),
+                                         options_.name),
+                         {});
+            counters_.resyncBytes += static_cast<quint64>(buffer_.size());
+            buffer_.clear();
+            break;
+        }
+
+        const QByteArray consumed = buffer_.take(consumedCount);
         if (frame.raw.isEmpty()) {
             frame.raw = consumed;
         }
@@ -136,6 +177,9 @@ void ProtocolSession::drainBuffer()
         link_->noteFrameReceived();
         processFrame(std::move(frame));
     }
+
+    // The buffer ran dry or needs more data while still resynchronising.
+    reportResync();
 }
 
 void ProtocolSession::processFrame(Frame frame)
@@ -155,10 +199,24 @@ void ProtocolSession::processFrame(Frame frame)
 
     const bool handled = registry_->hasHandler(message->messageType());
 
-    // A frame that nothing handles, or any frame at all while acting as an
-    // initiator, is a candidate answer to something this session asked for.
-    if (!handled || options_.role == transport::TransportRole::Initiator) {
-        if (pending_.resolve(codec_->correlationKey(frame), message)) {
+    // Decide whether this could be an answer to something we sent.
+    //
+    // A frame nothing handles can only be a response. A frame that does have a
+    // handler is only considered as one when this session actually issues
+    // requests and the codec gave the frame a correlation token; otherwise a
+    // peer-initiated request would be swallowed by the pending table and its
+    // handler would never run.
+    //
+    // The role test matters for a session that plays both parts: the peer
+    // numbers its transactions in its own space, so its request id can collide
+    // with one of ours, and a pure responder must never consult the table.
+    if (!pending_.isEmpty()) {
+        const QString correlationKey = codec_->correlationKey(frame);
+        const bool couldBeReply =
+            !handled
+            || (options_.role == transport::TransportRole::Initiator && !correlationKey.isEmpty());
+
+        if (couldBeReply && pending_.resolve(correlationKey, message)) {
             updateTimeoutTimer();
             return;
         }
@@ -315,10 +373,11 @@ void ProtocolSession::deliverBytes(QByteArray bytes, Frame outbound, const Messa
     const ByteFilterDecision decision = outboundFilters_.apply(bytes, filterContext);
 
     // Report what actually goes on the wire, corruption included, so the packet
-    // view shows the injected fault rather than the pristine encoding.
+    // view shows the injected fault rather than the pristine encoding. Frames
+    // the filters discarded are still reported, flagged as undelivered.
     outbound.raw = bytes;
     publishFrame(outbound, message != nullptr, message ? message->describe() : QString{},
-                 decision.note);
+                 decision.note, decision.deliver);
 
     if (!decision.deliver) {
         ++counters_.droppedByFilter;
@@ -350,10 +409,27 @@ void ProtocolSession::writeToLink(const QByteArray& bytes)
         return;
     }
 
-    if (link_->send(bytes) >= 0) {
-        link_->noteFrameSent();
-        ++counters_.framesSent;
+    const qint64 written = link_->send(bytes);
+    if (written < 0) {
+        // The link implementation reports the reason itself, through
+        // ILink::reportError, because only it knows why the write failed.
+        // Publishing a second, vaguer event here would just duplicate it.
+        return;
     }
+    if (written != bytes.size()) {
+        // A short write puts a truncated frame on the wire, which the peer sees
+        // as a framing error. Counting it as sent would hide that.
+        publishError(core::makeError(core::ErrorCode::IoError,
+                                     QStringLiteral("wrote %1 of %2 bytes")
+                                         .arg(written)
+                                         .arg(bytes.size()),
+                                     options_.name),
+                     bytes);
+        return;
+    }
+
+    link_->noteFrameSent();
+    ++counters_.framesSent;
 }
 
 // --- Lifecycle and timeouts ------------------------------------------------
@@ -409,9 +485,10 @@ void ProtocolSession::updateTimeoutTimer()
 // --- Reporting -------------------------------------------------------------
 
 void ProtocolSession::publishFrame(const Frame& frame, bool decoded, QString description,
-                                   QString annotation)
+                                   QString annotation, bool delivered)
 {
     ProtocolFrameEvent event;
+    event.delivered = delivered;
     event.sessionName = options_.name;
     event.deviceName = options_.deviceName;
     event.linkId = frame.linkId;
