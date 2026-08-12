@@ -1,0 +1,7 @@
+{
+    "id": "tlv-template",
+    "displayName": "私有协议模板 (TLV)",
+    "version": "1.0.0",
+    "vendor": "HwSimPlatform",
+    "variants": ["v1"]
+}

@@ -1,0 +1,26 @@
+hwsim_add_library(hwsim_ui
+    EXPORT_MACRO HWSIM_UI_BUILD
+    SOURCES
+        UiGlobal.h
+        IDeviceController.h
+        SchemaFormWidget.h
+        SchemaFormWidget.cpp
+        DeviceTreeWidget.h
+        DeviceTreeWidget.cpp
+        LogDockWidget.h
+        LogDockWidget.cpp
+        PacketView.h
+        PacketView.cpp
+        ParameterPanel.h
+        ParameterPanel.cpp
+        ScenarioPanel.h
+        ScenarioPanel.cpp
+    PUBLIC_DEPS
+        hwsim::core
+        hwsim::transport
+        hwsim::protocol
+        hwsim::simulator
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+)

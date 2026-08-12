@@ -1,0 +1,107 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{QT6_DIR}",
+        "HWSIM_BUILD_TESTS": "ON",
+        "HWSIM_BUILD_SHARED": "ON",
+        "HWSIM_PLUGIN_LINKAGE": "DYNAMIC"
+      }
+    },
+    {
+      "name": "msvc2022",
+      "displayName": "MSVC 2022 x64 (multi-config)",
+      "description": "Primary target. Requires Qt 6.5+ msvc2019_64 kit; set QT6_DIR to e.g. C:/Qt/6.5.3/msvc2019_64",
+      "inherits": "base",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64"
+    },
+    {
+      "name": "msvc2019",
+      "displayName": "MSVC 2019 x64 (fallback)",
+      "description": "Fallback toolset. std::format is unavailable; Cpp20Features.cmake falls back to the Qt formatting path",
+      "inherits": "base",
+      "generator": "Visual Studio 16 2019",
+      "architecture": "x64"
+    },
+    {
+      "name": "msvc2022-static-plugins",
+      "displayName": "MSVC 2022 x64, plugins linked in",
+      "description": "Everything in one executable. Easiest configuration for stepping through plugin code in a debugger",
+      "inherits": "msvc2022",
+      "cacheVariables": {
+        "HWSIM_PLUGIN_LINKAGE": "STATIC"
+      }
+    },
+    {
+      "name": "ninja-debug",
+      "displayName": "Ninja Debug",
+      "description": "Requires ninja on PATH. Faster iteration than the Visual Studio generator",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "ninja-release",
+      "displayName": "Ninja Release",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "msvc2022-debug",
+      "configurePreset": "msvc2022",
+      "configuration": "Debug"
+    },
+    {
+      "name": "msvc2022-release",
+      "configurePreset": "msvc2022",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "msvc2019-debug",
+      "configurePreset": "msvc2019",
+      "configuration": "Debug"
+    },
+    {
+      "name": "ninja-debug",
+      "configurePreset": "ninja-debug"
+    },
+    {
+      "name": "ninja-release",
+      "configurePreset": "ninja-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "msvc2022-debug",
+      "configurePreset": "msvc2022",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ninja-debug",
+      "configurePreset": "ninja-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+hwsim_add_library(hwsim_protocol
+    EXPORT_MACRO HWSIM_PROTOCOL_BUILD
+    SOURCES
+        ProtocolGlobal.h
+        ProtocolTypes.h
+        ProtocolEvents.h
+        IMessage.h
+        IDeviceAccess.h
+        IDeviceAccess.cpp
+        ExecutionContext.h
+        ExecutionContext.cpp
+        CommandRegistry.h
+        CommandRegistry.cpp
+        IFrameCodec.h
+        IMiddleware.h
+        IMiddleware.cpp
+        IByteFilter.h
+        IByteFilter.cpp
+        PendingRequestTable.h
+        PendingRequestTable.cpp
+        ProtocolSession.h
+        ProtocolSession.cpp
+        IProtocolPlugin.h
+        PluginManager.h
+        PluginManager.cpp
+    PUBLIC_DEPS
+        hwsim::core
+        hwsim::transport
+        Qt6::Core
+)

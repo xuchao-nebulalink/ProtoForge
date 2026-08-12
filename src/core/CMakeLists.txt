@@ -1,0 +1,29 @@
+hwsim_add_library(hwsim_core
+    EXPORT_MACRO HWSIM_CORE_BUILD
+    SOURCES
+        CoreGlobal.h
+        ErrorCode.h
+        ErrorCode.cpp
+        Result.h
+        TypeId.h
+        Endian.h
+        Crc.h
+        Crc.cpp
+        ByteBuffer.h
+        ByteBuffer.cpp
+        HexUtils.h
+        HexUtils.cpp
+        Clock.h
+        Clock.cpp
+        Logger.h
+        Logger.cpp
+        LogSinks.h
+        LogSinks.cpp
+        EventBus.h
+        EventBus.cpp
+        Registry.h
+        ConfigSchema.h
+        ConfigSchema.cpp
+    PUBLIC_DEPS
+        Qt6::Core
+)

@@ -1,0 +1,30 @@
+hwsim_add_library(hwsim_simulator
+    EXPORT_MACRO HWSIM_SIMULATOR_BUILD
+    SOURCES
+        SimulatorGlobal.h
+        SimulatorEvents.h
+        Parameter.h
+        Parameter.cpp
+        ParameterStore.h
+        ParameterStore.cpp
+        DeviceStateMachine.h
+        DeviceStateMachine.cpp
+        ISignalSource.h
+        ISignalSource.cpp
+        SignalSources.h
+        SignalSources.cpp
+        SignalEngine.h
+        SignalEngine.cpp
+        FaultRules.h
+        FaultRules.cpp
+        FaultInjector.h
+        FaultInjector.cpp
+        DeviceModel.h
+        DeviceModel.cpp
+        DeviceProfile.h
+        DeviceProfile.cpp
+    PUBLIC_DEPS
+        hwsim::core
+        hwsim::protocol
+        Qt6::Core
+)

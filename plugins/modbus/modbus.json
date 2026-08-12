@@ -1,0 +1,7 @@
+{
+    "id": "modbus",
+    "displayName": "Modbus",
+    "version": "1.0.0",
+    "vendor": "HwSimPlatform",
+    "variants": ["rtu", "tcp"]
+}

@@ -1,0 +1,35 @@
+hwsim_add_library(hwsim_transport
+    EXPORT_MACRO HWSIM_TRANSPORT_BUILD
+    SOURCES
+        TransportGlobal.h
+        TransportTypes.h
+        TransportTypes.cpp
+        TransportConfig.h
+        TransportConfig.cpp
+        TransportEvents.h
+        ILink.h
+        ILink.cpp
+        ITransport.h
+        ITransport.cpp
+        StreamLink.h
+        StreamLink.cpp
+        TcpServerTransport.h
+        TcpServerTransport.cpp
+        TcpClientTransport.h
+        TcpClientTransport.cpp
+        UdpTransport.h
+        UdpTransport.cpp
+        SerialTransport.h
+        SerialTransport.cpp
+        LoopbackTransport.h
+        LoopbackTransport.cpp
+        TransportFactory.h
+        TransportFactory.cpp
+        TransportThread.h
+        TransportThread.cpp
+    PUBLIC_DEPS
+        hwsim::core
+        Qt6::Core
+        Qt6::Network
+        Qt6::SerialPort
+)

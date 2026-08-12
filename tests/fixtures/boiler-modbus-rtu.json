@@ -1,0 +1,223 @@
+{
+    "formatVersion": 1,
+    "name": "boiler-01",
+    "description": "示例设备：一台 Modbus RTU 从站锅炉控制器，带温度动态、状态机与超温故障",
+    "role": "responder",
+    "protocol": {
+        "id": "modbus",
+        "config": {
+            "variant": "rtu",
+            "unitId": 1,
+            "coilBase": 0,
+            "discreteInputBase": 10000,
+            "inputRegisterBase": 30000,
+            "holdingRegisterBase": 40000
+        }
+    },
+    "transport": {
+        "kind": "serial",
+        "role": "Responder",
+        "values": {
+            "portName": "COM3",
+            "baudRate": "9600",
+            "dataBits": "8",
+            "parity": "none",
+            "stopBits": "1",
+            "flowControl": "none"
+        }
+    },
+    "parameters": [
+        {
+            "key": "coil.burner",
+            "displayName": "燃烧器",
+            "type": "bool",
+            "access": "rw",
+            "address": 0,
+            "default": false,
+            "group": "线圈"
+        },
+        {
+            "key": "di.flameDetected",
+            "displayName": "火焰检测",
+            "type": "bool",
+            "access": "r",
+            "address": 10000,
+            "default": false,
+            "group": "离散输入"
+        },
+        {
+            "key": "di.overTemp",
+            "displayName": "超温报警",
+            "type": "bool",
+            "access": "r",
+            "address": 10001,
+            "default": false,
+            "group": "离散输入"
+        },
+        {
+            "key": "ir.waterTemp",
+            "displayName": "出水温度",
+            "type": "uint",
+            "access": "r",
+            "address": 30000,
+            "default": 250,
+            "minimum": 0,
+            "maximum": 65535,
+            "unit": "0.1℃",
+            "scale": 0.1,
+            "group": "输入寄存器"
+        },
+        {
+            "key": "ir.pressure",
+            "displayName": "系统压力",
+            "type": "uint",
+            "access": "r",
+            "address": 30001,
+            "default": 1500,
+            "minimum": 0,
+            "maximum": 65535,
+            "unit": "0.001MPa",
+            "scale": 0.001,
+            "group": "输入寄存器"
+        },
+        {
+            "key": "hr.tempSetpoint",
+            "displayName": "温度设定",
+            "type": "uint",
+            "access": "rw",
+            "address": 40000,
+            "default": 600,
+            "minimum": 200,
+            "maximum": 900,
+            "unit": "0.1℃",
+            "scale": 0.1,
+            "group": "保持寄存器"
+        },
+        {
+            "key": "hr.mode",
+            "displayName": "工作模式",
+            "type": "uint",
+            "access": "rw",
+            "address": 40001,
+            "default": 0,
+            "minimum": 0,
+            "maximum": 2,
+            "group": "保持寄存器"
+        }
+    ],
+    "stateMachine": {
+        "initial": "Standby",
+        "states": [
+            {
+                "name": "Standby",
+                "displayName": "待机",
+                "responsive": true,
+                "onEnter": { "coil.burner": false }
+            },
+            {
+                "name": "Heating",
+                "displayName": "加热中",
+                "responsive": true,
+                "onEnter": { "coil.burner": true, "di.flameDetected": true }
+            },
+            {
+                "name": "OverTemp",
+                "displayName": "超温保护",
+                "responsive": true,
+                "onEnter": { "coil.burner": false, "di.overTemp": true }
+            },
+            {
+                "name": "Lockout",
+                "displayName": "锁定 (不应答)",
+                "description": "模拟设备失联，协议层将停止回复任何请求",
+                "responsive": false
+            }
+        ],
+        "transitions": [
+            { "from": "Standby", "to": "Heating", "event": "start" },
+            { "from": "Heating", "to": "Standby", "event": "stop" },
+            {
+                "from": "Heating",
+                "to": "OverTemp",
+                "condition": "ir.waterTemp>850",
+                "description": "出水温度超过 85℃ 触发保护"
+            },
+            {
+                "from": "OverTemp",
+                "to": "Standby",
+                "afterMs": 30000,
+                "description": "冷却 30 秒后自动复位"
+            },
+            { "from": "*", "to": "Lockout", "event": "lockout" },
+            { "from": "Lockout", "to": "Standby", "event": "reset" }
+        ]
+    },
+    "signals": [
+        {
+            "parameter": "ir.waterTemp",
+            "source": "sine",
+            "combine": "replace",
+            "intervalMs": 200,
+            "enabled": true,
+            "config": {
+                "amplitude": 150.0,
+                "offset": 600.0,
+                "frequencyHz": 0.02,
+                "phaseDeg": 0.0
+            }
+        },
+        {
+            "parameter": "ir.waterTemp",
+            "source": "noise",
+            "combine": "add",
+            "intervalMs": 200,
+            "enabled": true,
+            "config": {
+                "distribution": "gaussian",
+                "amplitude": 3.0,
+                "centre": 0.0,
+                "seed": 20240101
+            }
+        },
+        {
+            "parameter": "ir.pressure",
+            "source": "random-walk",
+            "combine": "replace",
+            "intervalMs": 500,
+            "enabled": true,
+            "config": {
+                "startValue": 1500.0,
+                "stepPerSecond": 8.0,
+                "minimum": 1200.0,
+                "maximum": 1800.0,
+                "seed": 7
+            }
+        }
+    ],
+    "faults": [
+        {
+            "kind": "checksum-error",
+            "enabled": false,
+            "config": {
+                "direction": "outbound",
+                "trigger": "probability",
+                "probability": 0.05,
+                "checksumBytes": 2,
+                "xorMask": 255
+            }
+        },
+        {
+            "kind": "timeout",
+            "enabled": false,
+            "config": {
+                "direction": "outbound",
+                "trigger": "every-nth",
+                "everyNth": 20
+            }
+        }
+    ],
+    "initialValues": {
+        "hr.tempSetpoint": 650,
+        "hr.mode": 1
+    }
+}
