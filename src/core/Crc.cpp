@@ -27,6 +27,8 @@ const std::unordered_map<Algorithm, AlgorithmTraits>& traitsTable()
          {[](std::span<const std::byte> d) -> std::uint32_t { return xor8(d); }, 1}},
         {Algorithm::Lrc8,
          {[](std::span<const std::byte> d) -> std::uint32_t { return lrc(d); }, 1}},
+        {Algorithm::Umts16,
+         {[](std::span<const std::byte> d) -> std::uint32_t { return umts(d); }, 2}},
     };
     return table;
 }

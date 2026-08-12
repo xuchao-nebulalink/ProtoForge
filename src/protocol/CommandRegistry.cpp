@@ -129,6 +129,18 @@ bool CommandRegistry::hasEncoder(core::TypeId messageType) const
     return encoders_.contains(messageType);
 }
 
+void CommandRegistry::setUnsolicitedSource(UnsolicitedSourcePtr source)
+{
+    std::unique_lock lock(mutex_);
+    unsolicited_ = std::move(source);
+}
+
+UnsolicitedSourcePtr CommandRegistry::unsolicitedSource() const
+{
+    std::shared_lock lock(mutex_);
+    return unsolicited_;
+}
+
 std::vector<CommandRegistry::Binding> CommandRegistry::bindings() const
 {
     std::shared_lock lock(mutex_);
@@ -179,6 +191,7 @@ void CommandRegistry::clear()
     parsers_.clear();
     handlers_.clear();
     encoders_.clear();
+    unsolicited_.reset();
 }
 
 } // namespace hwsim::protocol

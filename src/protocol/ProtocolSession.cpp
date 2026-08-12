@@ -32,6 +32,14 @@ ProtocolSession::ProtocolSession(transport::ILink* link, FrameCodecPtr codec,
     timeoutTimer_ = new QTimer(this);
     timeoutTimer_->setInterval(kTimeoutTickMs);
     connect(timeoutTimer_, &QTimer::timeout, this, &ProtocolSession::checkTimeouts);
+
+    unsolicited_ = registry_->unsolicitedSource();
+    if (unsolicited_ && unsolicited_->intervalMs() > 0) {
+        unsolicitedTimer_ = new QTimer(this);
+        unsolicitedTimer_->setInterval(unsolicited_->intervalMs());
+        connect(unsolicitedTimer_, &QTimer::timeout, this, &ProtocolSession::publishUnsolicited);
+        unsolicitedTimer_->start();
+    }
 }
 
 ProtocolSession::~ProtocolSession()
@@ -479,6 +487,25 @@ void ProtocolSession::updateTimeoutTimer()
         timeoutTimer_->stop();
     } else if (!timeoutTimer_->isActive()) {
         timeoutTimer_->start();
+    }
+}
+
+void ProtocolSession::publishUnsolicited()
+{
+    // Nothing is queued while the link is down: a telemetry frame is only
+    // meaningful live, and buffering it would just produce a burst of stale
+    // data the moment the peer reconnects.
+    if (!unsolicited_ || link_ == nullptr || !link_->isOpen()) {
+        return;
+    }
+
+    for (const MessagePtr& message : unsolicited_->poll(core::monotonicMs())) {
+        if (!message) {
+            continue;
+        }
+        if (const auto sent = send(message); sent.hasError()) {
+            publishError(sent.error(), {});
+        }
     }
 }
 

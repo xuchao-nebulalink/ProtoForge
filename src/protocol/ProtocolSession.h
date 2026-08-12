@@ -122,6 +122,7 @@ private:
 
     void checkTimeouts();
     void updateTimeoutTimer();
+    void publishUnsolicited();
 
     void publishFrame(const Frame& frame, bool decoded, QString description, QString annotation,
                       bool delivered = true);
@@ -142,6 +143,11 @@ private:
     core::ByteBuffer buffer_;
     PendingRequestTable pending_;
     QTimer* timeoutTimer_{nullptr};
+
+    /// Only created when the registry carries a source, so a protocol that
+    /// never talks unprompted pays for no timer.
+    UnsolicitedSourcePtr unsolicited_;
+    QTimer* unsolicitedTimer_{nullptr};
 
     Counters counters_;
 };

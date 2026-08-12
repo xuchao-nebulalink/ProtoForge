@@ -2,6 +2,7 @@
 
 #include "ExecutionContext.h"
 #include "IMessage.h"
+#include "IUnsolicitedSource.h"
 
 #include <core/TypeId.h>
 
@@ -153,6 +154,13 @@ public:
     [[nodiscard]] bool hasHandler(core::TypeId messageType) const;
     [[nodiscard]] bool hasEncoder(core::TypeId messageType) const;
 
+    /// Installs the source of unsolicited traffic for this protocol, if it has
+    /// any. Set while registering commands, because that is where the plugin
+    /// holds the device state the source has to read; every session built on
+    /// this registry picks it up and polls it.
+    void setUnsolicitedSource(UnsolicitedSourcePtr source);
+    [[nodiscard]] UnsolicitedSourcePtr unsolicitedSource() const;
+
     [[nodiscard]] std::vector<Binding> bindings() const;
     [[nodiscard]] QStringList describeBindings() const;
     [[nodiscard]] std::size_t size() const;
@@ -184,6 +192,7 @@ private:
     std::unordered_map<OpCode, ParserEntry> parsers_;
     std::unordered_map<core::TypeId, HandlerEntry> handlers_;
     std::unordered_map<core::TypeId, EncoderEntry> encoders_;
+    UnsolicitedSourcePtr unsolicited_;
 };
 
 } // namespace hwsim::protocol

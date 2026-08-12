@@ -55,6 +55,7 @@ constexpr std::array<std::uint32_t, 256> makeReflected32Table(std::uint32_t poly
 
 inline constexpr auto kModbusTable = makeReflected16Table(0xA001u);
 inline constexpr auto kCcittTable = makeForward16Table(0x1021u);
+inline constexpr auto kUmtsTable = makeForward16Table(0x8005u);
 inline constexpr auto kCrc32Table = makeReflected32Table(0xEDB88320u);
 
 } // namespace detail
@@ -85,6 +86,21 @@ inline constexpr auto kCrc32Table = makeReflected32Table(0xEDB88320u);
             static_cast<std::uint8_t>(value >> 8) ^ std::to_integer<std::uint8_t>(byte));
         value = static_cast<std::uint16_t>(static_cast<std::uint16_t>(value << 8)
                                            ^ detail::kCcittTable[index]);
+    }
+    return value;
+}
+
+/// CRC-16/UMTS, also catalogued as CRC-16/BUYPASS: forward, polynomial 0x8005,
+/// init 0x0000, no final XOR. Used by the SW6 realtime stream.
+[[nodiscard]] constexpr std::uint16_t umts(std::span<const std::byte> data,
+                                           std::uint16_t seed = 0x0000u) noexcept
+{
+    std::uint16_t value = seed;
+    for (const std::byte byte : data) {
+        const auto index = static_cast<std::uint8_t>(
+            static_cast<std::uint8_t>(value >> 8) ^ std::to_integer<std::uint8_t>(byte));
+        value = static_cast<std::uint16_t>(static_cast<std::uint16_t>(value << 8)
+                                           ^ detail::kUmtsTable[index]);
     }
     return value;
 }
@@ -153,6 +169,7 @@ enum class Algorithm {
     Sum8,
     Xor8,
     Lrc8,
+    Umts16,
 };
 
 [[nodiscard]] HWSIM_CORE_API std::uint32_t compute(Algorithm algorithm, std::span<const std::byte> data);

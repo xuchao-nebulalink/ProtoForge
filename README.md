@@ -94,7 +94,7 @@ src/simulator/   设备仿真：参数树、状态机、信号源、故障注入
 src/scripting/   QJSEngine 场景脚本
 src/ui/          界面组件
 src/app/         组装层与主窗口
-plugins/         协议插件（modbus、私有协议模板）
+plugins/         协议插件（modbus、SW6 六足平台、私有协议模板）
 tests/           单元测试、集成测试、样例档案
 docs/            架构文档、插件开发指南
 ```

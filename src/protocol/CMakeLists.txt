@@ -12,6 +12,7 @@ hwsim_add_library(hwsim_protocol
         CommandRegistry.h
         CommandRegistry.cpp
         IFrameCodec.h
+        IUnsolicitedSource.h
         IMiddleware.h
         IMiddleware.cpp
         IByteFilter.h

@@ -244,6 +244,29 @@ hwsim_add_protocol_plugin(
 
 然后在 `plugins/CMakeLists.txt` 里加 `add_subdirectory(myproto)`。
 
+### 2.6 设备主动上报（可选）
+
+Handler 只在收到帧时才跑，所以「下位机自己定时往上推」这类流量没法用 Handler 表达。
+实现 `IUnsolicitedSource`，在 `registerCommands()` 里挂到 registry 上即可 —— 那里正好还
+握着 Handler 共用的设备状态：
+
+```cpp
+class TelemetrySource final : public protocol::IUnsolicitedSource {
+public:
+    QString name() const override { return QStringLiteral("myproto.telemetry"); }
+    int intervalMs() const override { return 20; }          // 0 = 不轮询
+    std::vector<MessagePtr> poll(qint64 nowMs) override {    // 返回空表示这一拍不发
+        return {std::make_shared<TelemetryFrame>(state_->sample())};
+    }
+};
+
+registry.setUnsolicitedSource(std::make_shared<TelemetrySource>(state));
+```
+
+会话按 `intervalMs()` 轮询它，把返回的报文走 `send()` 发出去（不登记关联项，正是主动上报
+该有的语义）；链路没打开时自动跳过，不会攒一堆过期数据等重连后一起喷出去。
+参考 `plugins/sw6/` 的 `Sw6StreamSource`，它推的是 0x81 实时位姿流。
+
 ---
 
 ## 3. 动态还是静态
@@ -347,5 +370,6 @@ master.sendRequest(std::make_shared<ReadTemperature>(), [](Result<MessagePtr> re
 - [ ] 长度字段做了上界检查，避免恶意长度导致巨额分配
 - [ ] `registerCommands()` 里每个 opcode 只注册一次（重复会返回 false 并记 warning）
 - [ ] 只发不收的报文调用了 `bindEncoder<M>()`
+- [ ] 设备主动推的流量走 `IUnsolicitedSource`，不要试图从 Handler 里发
 - [ ] 插件本身不含任何故障注入逻辑（那是 `IByteFilter` 的职责）
 - [ ] `configSchema()` 覆盖了所有可配项，UI 面板由它自动生成
